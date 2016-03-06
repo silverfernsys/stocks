@@ -21,17 +21,22 @@ class HTTPStockHandler(tornado.web.RequestHandler):
     @tornado.web.addslash
     def get(self):
         try:
-        	stock_arg = self.get_query_argument('symbol')
-        	exchange_arg = self.get_query_argument('exchange', None)
-        	query = dal.Session().query(Stock).filter(Stock.symbol == stock_arg)
-        	if exchange_arg != None:
-        		query = query.filter(Stock.exchange.symbol == exchange_arg)
-        	data = []
-        	for stock in query:
-        		print(stock)
-        		data.append({'name': stock.name, 'symbol': stock.symbol, 'exchange': stock.exchange.symbol })
+            session = dal.Session()
+            stock_arg = self.get_query_argument('symbol')
+            exchange_arg = self.get_query_argument('exchange', None)
+            query = session.query(Stock).filter(Stock.symbol == stock_arg.upper())
+            if exchange_arg != None:
+                try:
+                    exchange = session.query(Exchange).filter(Exchange.symbol == exchange_arg.upper()).one()
+                    query = query.filter(Stock.exchange_id == exchange.id)
+                except Exception as e:
+                    print('Exchange exception: %s' % e)
+            data = []
+            for stock in query:
+                print(stock)
+                data.append({'name': stock.name, 'symbol': stock.symbol, 'exchange': stock.exchange.symbol })
         except tornado.web.MissingArgumentError:
-        	data = {'error':'missing stock symbol'}
+            data = {'error':'missing stock symbol'}
         except Exception as e:
             print('Error: %s' % e)
             try:

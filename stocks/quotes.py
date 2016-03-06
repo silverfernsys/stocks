@@ -25,7 +25,7 @@ def get_historical_data(symbol, start, end):
 
 # Volume': u'311488100', u'Symbol': u'AAPL', u'Adj_Close': u'25.409244', u'High': u'202.199995',
 # u'Low': u'190.250002', u'Date': u'2010-01-29', u'Close': u'192.060003', u'Open': u'201.079996'}
-def insert_data(data):
+def insert_historical_data(data):
     """
     Inserts an array of JSON data into a SQL database.
     All data must belong to the same stock symbol.
@@ -57,3 +57,85 @@ def insert_data(data):
         except Exception as e:
             print('insert_data EXCEPTION: %s' % e)
             session.rollback()
+
+
+def next_stock():
+    """
+    This function has side effects.
+    It updates StockPointer to the next stock.
+    Returns: the new stock pointed to by StockPointer.
+    """
+    session = dal.Session()
+    try:
+        # This is where we do some fancy query called an ANTI-JOIN.
+        # SELECT
+        # *
+        # FROM table1 t1
+        # LEFT JOIN table2 t2 ON t1.id = t2.id
+        # WHERE t2.id IS NULL
+        #
+        # https://www.google.ca/search?q=limit+offset+postgres&ie=utf-8&oe=utf-8&gws_rd=cr&ei=unPbVte_Kde8jwOspIjQDw
+        # http://blog.montmere.com/2010/12/08/the-anti-join-all-values-from-table1-where-not-in-table2/
+        # http://blog.jooq.org/2014/08/12/the-difference-between-row_number-rank-and-dense_rank/
+        # http://stackoverflow.com/questions/17437317/complex-query-subqueries-window-functions-with-sqlalchemy
+        # n is the current StockPointer.stock_id
+        # SELECT
+        # stocks.id
+        # FROM stocks
+        # LEFT JOIN stockpointer ON stocks.id = stockpointer.stock_id
+        # WHERE stockpointer.id IS NULL ORDER_BY stocks.id DESC OFFSET n
+
+        # pointer = session.query(StockPointer).order_by(StockPointer.stock_id.desc()).one()
+        # stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
+        # session.close()
+        # return stock
+    except:
+        try:
+            stock = session.query(Stock).order_by(Stock.id.desc()).one()
+            pointer = StockPointer(stock_id=stock.id)
+            session.save(pointer)
+            session.commit()
+            session.close()
+            return stock
+        except:
+            session.rollback()
+            session.close()
+            return None
+
+
+def get_current_stock():
+    """
+    Returns: stock pointed to by StockPointer.
+    If no StockPointer exists, returns the first
+    stock.
+    """
+    session = dal.Session()
+    try:
+        pointer = session.query(StockPointer).order_by(StockPointer.stock_id.desc()).one()
+        stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
+        session.close()
+        return stock
+    except:
+        try:
+            stock = session.query(Stock).order_by(Stock.id.desc()).one()
+            session.close()
+            return stock
+        except:
+            session.close()
+            return None
+
+
+def get_latest_year(stock):
+    """
+    Return the last year for which historical data exists.
+    If no historical data exists for this stock,
+    returns the current year + 1.
+    """
+    session = dal.Session()
+    try:
+        last_quote = session.query(HistoricalQuote).filter(stock_id == stock.id).order_by(HistoricalQuote.date.desc()).one()
+        return last_quote.date.year
+    except:
+        return date.today().year
+    session.close()
+

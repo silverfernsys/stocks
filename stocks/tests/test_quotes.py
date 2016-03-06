@@ -8,7 +8,7 @@ import requests_mock
 from datetime import date
 from stocks.db import dal, Exchange, Stock, HistoricalQuote
 from stocks.load_data import parseExchangeData, parseStockData
-from stocks.quotes import get_historical_data, insert_data
+from stocks.quotes import get_historical_data, insert_historical_data
 
 
 class QuotesTest(unittest.TestCase):
@@ -20,9 +20,9 @@ class QuotesTest(unittest.TestCase):
 
         # Load exchange and stock data
         parseExchangeData(os.path.join(fixtures, 'exchanges.csv'))
-        parseStockData(os.path.join(fixtures, 'amex.csv'), 'amex')
-        parseStockData(os.path.join(fixtures, 'nasdaq.csv'), 'nasdaq')
-        parseStockData(os.path.join(fixtures, 'nyse.csv'), 'nyse')
+        parseStockData(os.path.join(fixtures, 'amex.csv'), 'AMEX')
+        parseStockData(os.path.join(fixtures, 'nasdaq.csv'), 'NASDAQ')
+        parseStockData(os.path.join(fixtures, 'nyse.csv'), 'NYSE')
 
     def setUp(self):
         self.fixtures =  os.path.join(os.path.abspath(os.path.dirname(__file__)), 'fixtures')
@@ -36,7 +36,7 @@ class QuotesTest(unittest.TestCase):
     	response_data = open(os.path.join(self.fixtures, 'aapl_2010-01-01_2010-01-31.json')).read()
     	m.register_uri(requests_mock.ANY, requests_mock.ANY, text=response_data)
     	quotes = get_historical_data(stock_symbol, date(2010, 1, 1), date(2010, 1, 31))
-        insert_data(quotes)
+        insert_historical_data(quotes)
         session = dal.session
         stock = session.query(Stock).filter(Stock.symbol == stock_symbol).one()
         count = session.query(HistoricalQuote).filter(HistoricalQuote.stock == stock).count()

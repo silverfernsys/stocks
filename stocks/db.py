@@ -74,6 +74,29 @@ class HistoricalQuote(Base):
             "date='{self.date}'".format(self=self)
 
 
+class CompleteHistoricalData(Base):
+    __tablename__ = 'completehistoricaldata'
+
+    id = Column(Integer, primary_key=True)
+    stock_id = Column(Integer, ForeignKey('stocks.id'), unique=True)
+
+    stock = relationship("Stock", backref=backref('historical_data', uselist=False))
+
+    def __repr(self):
+        return "CompleteHistoricalData(id='{self.id}', " \
+            "stock='{self.stock.symbol}')".format(self)
+
+
+class StockPointer(Base):
+    __tablename__ = 'stockpointer'
+
+    # id = Column(Integer, primary_key=True)
+    stock_id = Column(Integer, ForeignKey('stocks.id'), primary_key=True)
+
+    def __repr(self):
+        return "StockPointer(stock_id='{self.stock_id}')".format(self.stock_id)
+
+
 class DataAccessLayer:
 
     def __init__(self):

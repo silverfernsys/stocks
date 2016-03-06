@@ -21,7 +21,7 @@ def parseExchangeData(filename):
     with open(filename) as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            symbol = row['Symbol'].strip()
+            symbol = row['Symbol'].strip().upper()
             name = row['Name'].strip()
             session = dal.Session()
             exchange = Exchange(name=name, symbol=symbol)
@@ -43,7 +43,7 @@ def parseStockData(filename, exchange_symbol):
         with open(filename) as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                symbol = row['Symbol'].strip()
+                symbol = row['Symbol'].strip().upper()
                 name = row['Name'].strip()
                 ipo_year = row['IPOyear'].strip()
                 if ipo_year != 'n/a':
