@@ -2,7 +2,7 @@
 from datetime import date, datetime
 import requests
 from requests.utils import quote
-from db import dal, HistoricalQuote, Stock
+from db import dal, HistoricalQuote, Stock, StockPointer
 
 DATE_FORMAT = '%Y-%m-%d'
 YAHOO_API_URL = 'https://query.yahooapis.com/v1/public/yql?q='
@@ -59,7 +59,7 @@ def insert_historical_data(data):
             session.rollback()
 
 
-def next_stock():
+def get_next_stock():
     """
     This function has side effects.
     It updates StockPointer to the next stock.
@@ -82,22 +82,54 @@ def next_stock():
         # SELECT
         # stocks.id
         # FROM stocks
-        # LEFT JOIN stockpointer ON stocks.id = stockpointer.stock_id
-        # WHERE stockpointer.id IS NULL ORDER_BY stocks.id DESC OFFSET n
+        # LEFT JOIN completehistoricaldata ON stocks.id = completehistoricaldata.stock_id
+        # WHERE completehistoricaldata.id IS NULL ORDER BY stocks.id DESC OFFSET n
 
         # pointer = session.query(StockPointer).order_by(StockPointer.stock_id.desc()).one()
         # stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
         # session.close()
         # return stock
+
+        # 
+        # # join table_a and table_b
+        # query = session.query(table_a, table_b)
+        # query = query.filter(table_a.id == table_b.id)
+
+        # # create subquery
+        # subquery = session.query(table_c.id)
+        # # select all from table_a not in subquery
+        # query = query.filter(~table_a.id.in_(subquery))
+
+        query = session.query(Stock, StockPointer)
+        query = query.filter(Stock.id == StockPointer.stock_id)
+        query = query.filter(~Stock.id.in_(query))
+
+        # Do this the naive way for the time being. This assumes no historically complete stocks.
+        pointer = session.query(StockPointer).order_by(StockPointer.stock_id).one()
+        stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
+        try:
+            next_stock = session.query(Stock).filter(Stock.id > stock.id).order_by(Stock.id.desc()).one()
+        except:
+            # There is no 'next_stock', so we'll save a pointer to, and return, the very first stock.
+            next_stock = session.query(Stock).order_by(Stock.id.desc()).one()
+        session.delete(pointer)
+        pointer = StockPointer(stock_id = next_stock.id)
+        session.add(pointer)
+        session.commit()
+        session.close()
+        return next_stock
     except:
         try:
-            stock = session.query(Stock).order_by(Stock.id.desc()).one()
+            stock = session.query(Stock).order_by(Stock.id.desc()).first()
             pointer = StockPointer(stock_id=stock.id)
-            session.save(pointer)
+            session.add(pointer)
             session.commit()
+            # Force lazy eval of exchange, because session will be closed before function returns.
+            exchange = stock.exchange
             session.close()
             return stock
-        except:
+        except Exception as e:
+            print('EXCEPTION: %s' % e)
             session.rollback()
             session.close()
             return None
@@ -117,7 +149,9 @@ def get_current_stock():
         return stock
     except:
         try:
-            stock = session.query(Stock).order_by(Stock.id.desc()).one()
+            stock = session.query(Stock).order_by(Stock.id.desc()).first()
+            # Force lazy eval of exchange, because session will be closed before function returns.
+            exchange = stock.exchange
             session.close()
             return stock
         except:
@@ -134,8 +168,8 @@ def get_latest_year(stock):
     session = dal.Session()
     try:
         last_quote = session.query(HistoricalQuote).filter(stock_id == stock.id).order_by(HistoricalQuote.date.desc()).one()
+        session.close()
         return last_quote.date.year
     except:
+        session.close()
         return date.today().year
-    session.close()
-
