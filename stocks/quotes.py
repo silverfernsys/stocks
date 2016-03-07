@@ -100,27 +100,28 @@ def get_next_stock():
         # # select all from table_a not in subquery
         # query = query.filter(~table_a.id.in_(subquery))
 
-        query = session.query(Stock, StockPointer)
-        query = query.filter(Stock.id == StockPointer.stock_id)
-        query = query.filter(~Stock.id.in_(query))
+        # query = session.query(Stock, StockPointer)
+        # query = query.filter(Stock.id == StockPointer.stock_id)
+        # query = query.filter(~Stock.id.in_(query))
 
-        # Do this the naive way for the time being. This assumes no historically complete stocks.
         pointer = session.query(StockPointer).order_by(StockPointer.stock_id).one()
-        stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
+        current_stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
         try:
-            next_stock = session.query(Stock).filter(Stock.id > stock.id).order_by(Stock.id.desc()).one()
-        except:
+            next_stock = session.query(Stock).filter(Stock.id > current_stock.id).filter(Stock.historically_complete == None).order_by(Stock.id.asc()).first()
+        except Exception as e:
             # There is no 'next_stock', so we'll save a pointer to, and return, the very first stock.
-            next_stock = session.query(Stock).order_by(Stock.id.desc()).one()
+            next_stock = session.query(Stock).order_by(Stock.id.asc()).first()
         session.delete(pointer)
         pointer = StockPointer(stock_id = next_stock.id)
         session.add(pointer)
         session.commit()
+        # next_stock = session.query(Stock).filter(Stock.id == next_stock.id).one()
+        exchange = next_stock.exchange
         session.close()
         return next_stock
-    except:
+    except Exception as e:
         try:
-            stock = session.query(Stock).order_by(Stock.id.desc()).first()
+            stock = session.query(Stock).order_by(Stock.id.asc()).first()
             pointer = StockPointer(stock_id=stock.id)
             session.add(pointer)
             session.commit()
@@ -129,7 +130,6 @@ def get_next_stock():
             session.close()
             return stock
         except Exception as e:
-            print('EXCEPTION: %s' % e)
             session.rollback()
             session.close()
             return None
@@ -143,13 +143,13 @@ def get_current_stock():
     """
     session = dal.Session()
     try:
-        pointer = session.query(StockPointer).order_by(StockPointer.stock_id.desc()).one()
+        pointer = session.query(StockPointer).order_by(StockPointer.stock_id.asc()).one()
         stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
         session.close()
         return stock
     except:
         try:
-            stock = session.query(Stock).order_by(Stock.id.desc()).first()
+            stock = session.query(Stock).order_by(Stock.id.asc()).first()
             # Force lazy eval of exchange, because session will be closed before function returns.
             exchange = stock.exchange
             session.close()
@@ -167,7 +167,7 @@ def get_latest_year(stock):
     """
     session = dal.Session()
     try:
-        last_quote = session.query(HistoricalQuote).filter(stock_id == stock.id).order_by(HistoricalQuote.date.desc()).one()
+        last_quote = session.query(HistoricalQuote).filter(stock_id == stock.id).order_by(HistoricalQuote.date.asc()).one()
         session.close()
         return last_quote.date.year
     except:

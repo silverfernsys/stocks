@@ -36,6 +36,9 @@ class Stock(Base):
 
     exchange = relationship("Exchange", backref=backref('stocks', order_by=symbol))
 
+    historically_complete = relationship("CompleteHistoricalData", 
+        primaryjoin = "Stock.id == CompleteHistoricalData.stock_id")
+
     def __repr__(self):
         return "Stock(id='{self.id}', " \
             "name='{self.name}', " \
@@ -80,7 +83,7 @@ class CompleteHistoricalData(Base):
     id = Column(Integer, primary_key=True)
     stock_id = Column(Integer, ForeignKey('stocks.id'), unique=True)
 
-    stock = relationship("Stock", backref=backref('historical_data', uselist=False))
+    # stock = relationship("Stock", backref=backref('complete_historical_data', uselist=False))
 
     def __repr(self):
         return "CompleteHistoricalData(id='{self.id}', " \

@@ -6,7 +6,7 @@ import unittest
 import requests
 import requests_mock
 from datetime import date
-from stocks.db import dal, Exchange, Stock, HistoricalQuote
+from stocks.db import dal, Exchange, Stock, HistoricalQuote, CompleteHistoricalData
 from stocks.load_data import parseExchangeData, parseStockData
 from stocks.quotes import (get_historical_data, insert_historical_data,
     get_latest_year, get_current_stock, get_next_stock)
@@ -50,15 +50,29 @@ class QuotesTest(unittest.TestCase):
 
     def test_get_current_stock(self):
         session = dal.Session()
-        first_stock = session.query(Stock).order_by(Stock.id.desc()).first()
+        first_stock = session.query(Stock).order_by(Stock.id.asc()).first()
         queried_stock = get_current_stock()
         self.assertEqual(first_stock.symbol, queried_stock.symbol)
         self.assertEqual(first_stock.exchange.symbol, queried_stock.exchange.symbol)
 
     def test_get_next_stock(self):
         session = dal.Session()
-        first_stock = session.query(Stock).order_by(Stock.id.desc()).first()
+        first_stock = session.query(Stock).order_by(Stock.id.asc()).first()
         queried_stock = get_next_stock()
         self.assertEqual(first_stock.symbol, queried_stock.symbol)
         self.assertEqual(first_stock.exchange.symbol, queried_stock.exchange.symbol)
+        second_stock = session.query(Stock).filter(Stock.id > first_stock.id).order_by(Stock.id.asc()).first()
+        queried_stock = get_next_stock()
+        self.assertEqual(second_stock.id, queried_stock.id)
+
+        # Now we test the case where there's a historically complete stock for the third stock. We expect that the 
+        # id returned from get_next_stock to be the fourth stock's id.
+        third_stock = session.query(Stock).filter(Stock.id > second_stock.id).order_by(Stock.id.asc()).first()
+        fourth_stock = session.query(Stock).filter(Stock.id > third_stock.id).order_by(Stock.id.asc()).first()
+        c = CompleteHistoricalData(stock_id = third_stock.id)
+        session.add(c)
+        session.commit()
+        queried_stock = get_next_stock()
+        self.assertEqual(fourth_stock.id, queried_stock.id)
+
 
