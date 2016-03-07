@@ -7,7 +7,22 @@ from db import dal, HistoricalQuote, Stock, StockPointer
 DATE_FORMAT = '%Y-%m-%d'
 YAHOO_API_URL = 'https://query.yahooapis.com/v1/public/yql?q='
 
-def get_historical_data(symbol, start, end):
+
+def fetch_and_insert_next_stock_historical_data():
+    """
+    This function calls 'get_next_stock()' for symbol
+    and 'get_latest_year()' for start and end dates
+    """
+    stock = get_next_stock()
+    print('stock: %s' % stock)
+    year = get_latest_year(stock) - 1
+    start = date(year, 1, 1)
+    end = date(year, 12, 31)
+    data = fetch_historical_data(stock.symbol, start, end)
+    insert_historical_data(data)
+
+
+def fetch_historical_data(symbol, start, end):
     """
     Returns a JSON array of historical stock prices
     for symbol 'symbol', 'start' day, and 'end' day.
@@ -22,6 +37,7 @@ def get_historical_data(symbol, start, end):
     response = requests.get(query)
     # print('RESPONSE.TEXT: %s' % response.text)
     return response.json()['query']['results']['quote']
+
 
 # Volume': u'311488100', u'Symbol': u'AAPL', u'Adj_Close': u'25.409244', u'High': u'202.199995',
 # u'Low': u'190.250002', u'Date': u'2010-01-29', u'Close': u'192.060003', u'Open': u'201.079996'}
@@ -67,48 +83,12 @@ def get_next_stock():
     """
     session = dal.Session()
     try:
-        # This is where we do some fancy query called an ANTI-JOIN.
-        # SELECT
-        # *
-        # FROM table1 t1
-        # LEFT JOIN table2 t2 ON t1.id = t2.id
-        # WHERE t2.id IS NULL
-        #
-        # https://www.google.ca/search?q=limit+offset+postgres&ie=utf-8&oe=utf-8&gws_rd=cr&ei=unPbVte_Kde8jwOspIjQDw
-        # http://blog.montmere.com/2010/12/08/the-anti-join-all-values-from-table1-where-not-in-table2/
-        # http://blog.jooq.org/2014/08/12/the-difference-between-row_number-rank-and-dense_rank/
-        # http://stackoverflow.com/questions/17437317/complex-query-subqueries-window-functions-with-sqlalchemy
-        # n is the current StockPointer.stock_id
-        # SELECT
-        # stocks.id
-        # FROM stocks
-        # LEFT JOIN completehistoricaldata ON stocks.id = completehistoricaldata.stock_id
-        # WHERE completehistoricaldata.id IS NULL ORDER BY stocks.id DESC OFFSET n
-
-        # pointer = session.query(StockPointer).order_by(StockPointer.stock_id.desc()).one()
-        # stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
-        # session.close()
-        # return stock
-
-        # 
-        # # join table_a and table_b
-        # query = session.query(table_a, table_b)
-        # query = query.filter(table_a.id == table_b.id)
-
-        # # create subquery
-        # subquery = session.query(table_c.id)
-        # # select all from table_a not in subquery
-        # query = query.filter(~table_a.id.in_(subquery))
-
-        # query = session.query(Stock, StockPointer)
-        # query = query.filter(Stock.id == StockPointer.stock_id)
-        # query = query.filter(~Stock.id.in_(query))
-
         pointer = session.query(StockPointer).order_by(StockPointer.stock_id).one()
         current_stock = session.query(Stock).filter(Stock.id == pointer.stock_id).one()
         try:
             next_stock = session.query(Stock).filter(Stock.id > current_stock.id).filter(Stock.historically_complete == None).order_by(Stock.id.asc()).first()
         except Exception as e:
+            print('EXCEPTION 1: %s' % e)
             # There is no 'next_stock', so we'll save a pointer to, and return, the very first stock.
             next_stock = session.query(Stock).order_by(Stock.id.asc()).first()
         session.delete(pointer)
@@ -121,6 +101,7 @@ def get_next_stock():
         return next_stock
     except Exception as e:
         try:
+            print('EXCEPTION 2: %s' % e)
             stock = session.query(Stock).order_by(Stock.id.asc()).first()
             pointer = StockPointer(stock_id=stock.id)
             session.add(pointer)
@@ -130,6 +111,7 @@ def get_next_stock():
             session.close()
             return stock
         except Exception as e:
+            print('EXCEPTION 3: %s' % e)
             session.rollback()
             session.close()
             return None
@@ -167,9 +149,9 @@ def get_latest_year(stock):
     """
     session = dal.Session()
     try:
-        last_quote = session.query(HistoricalQuote).filter(stock_id == stock.id).order_by(HistoricalQuote.date.asc()).one()
+        last_quote = session.query(HistoricalQuote).filter(stock_id == stock.id).order_by(HistoricalQuote.date.asc()).first()
         session.close()
         return last_quote.date.year
     except:
         session.close()
-        return date.today().year
+        return date.today().year + 1

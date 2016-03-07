@@ -83,8 +83,6 @@ class CompleteHistoricalData(Base):
     id = Column(Integer, primary_key=True)
     stock_id = Column(Integer, ForeignKey('stocks.id'), unique=True)
 
-    # stock = relationship("Stock", backref=backref('complete_historical_data', uselist=False))
-
     def __repr(self):
         return "CompleteHistoricalData(id='{self.id}', " \
             "stock='{self.stock.symbol}')".format(self)
@@ -93,7 +91,6 @@ class CompleteHistoricalData(Base):
 class StockPointer(Base):
     __tablename__ = 'stockpointer'
 
-    # id = Column(Integer, primary_key=True)
     stock_id = Column(Integer, ForeignKey('stocks.id'), primary_key=True)
 
     def __repr(self):

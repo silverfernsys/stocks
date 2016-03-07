@@ -8,7 +8,7 @@ import requests_mock
 from datetime import date
 from stocks.db import dal, Exchange, Stock, HistoricalQuote, CompleteHistoricalData
 from stocks.load_data import parseExchangeData, parseStockData
-from stocks.quotes import (get_historical_data, insert_historical_data,
+from stocks.quotes import (fetch_historical_data, insert_historical_data,
     get_latest_year, get_current_stock, get_next_stock)
 
 
@@ -36,7 +36,7 @@ class QuotesTest(unittest.TestCase):
         stock_symbol = 'AAPL'
     	response_data = open(os.path.join(self.fixtures, 'aapl_2010-01-01_2010-01-31.json')).read()
     	m.register_uri(requests_mock.ANY, requests_mock.ANY, text=response_data)
-    	quotes = get_historical_data(stock_symbol, date(2010, 1, 1), date(2010, 1, 31))
+    	quotes = fetch_historical_data(stock_symbol, date(2010, 1, 1), date(2010, 1, 31))
         insert_historical_data(quotes)
         session = dal.session
         stock = session.query(Stock).filter(Stock.symbol == stock_symbol).one()
@@ -46,7 +46,7 @@ class QuotesTest(unittest.TestCase):
     def test_get_latest_year(self):
         session = dal.Session()
         stock = session.query(Stock).filter(Stock.symbol == 'AAPL').one()
-        self.assertEqual(date.today().year, get_latest_year(stock))
+        self.assertEqual(date.today().year + 1, get_latest_year(stock))
 
     def test_get_current_stock(self):
         session = dal.Session()
